@@ -1,0 +1,124 @@
+body {
+  padding: 24px;
+  font-family: helvetica;
+}
+
+div.gen {
+  padding: 0 0 8px 0;
+  margin-bottom: 8px;
+}
+
+.score {
+  font-size: 10px;
+}
+
+div#output {
+  padding: 0;
+}
+
+div#canvases {
+  padding: 0;
+}
+
+#output img {
+  margin : 0 4px 4px 0;
+}
+
+canvas {
+  float: left;
+  margin: 0 6px 0 0;
+  padding: 0;
+  background-color: #000;
+}
+
+.clear {
+  clear: both;
+  margin: 0;
+  padding: 0;
+}
+
+div.hr {
+  border-top: 1px solid #ccc;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding: 4px;
+}
+
+div.input {
+  padding: 4px 0 4px 0;
+}
+
+div.input span {
+  padding-left: 6px;
+}
+
+.label {
+  font-weight: 100;
+  font-size: 18px;
+}
+
+.tip {
+  font-size: 10px;
+}
+
+#controls input {
+  width: 40px;
+  font-size: 10px;
+  float: left;
+  border: 1px solid #000;
+  padding: 4px;
+}
+
+h3 {
+  font-weight: 100;
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 18px;
+}
+
+h2 {
+  font-weight: 100;
+  font-size: 36px;
+}
+
+button {
+  width: 100px;
+  background: #000;
+  color: #fff;
+  font-weight: 100;
+  border-color: #000;
+  padding: 8px;
+  margin-left: 0;
+}
+
+button:active {
+  border-color: #fff #fff #fff #fff;
+}
+
+input[type=checkbox] {
+  display: none;
+}
+
+input[type=checkbox]:checked + label span.y {
+  display: inline;
+}
+
+input[type=checkbox]:checked + label span.n {
+  display: none;
+}
+
+input[type=checkbox] + label span.n {
+  display: inline;
+}
+
+input[type=checkbox] + label span.y {
+  display: none;
+}
+
+label span.u {
+  text-decoration: underline;
+}
+
+a {
+  color: black;
+}
