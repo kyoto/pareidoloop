@@ -3,18 +3,14 @@ window.rnd = (mean, stdev) ->
   ((Math.random() * 2 - 1) + (Math.random() * 2 - 1) + (Math.random() * 2 - 1)) * stdev + mean
 
 window.mean = (vals) ->
-  total = 0
-  $.each(vals, -> total += @)
-  total / vals.length
+  vals.reduce((x, y) -> x + y) / vals.length
 
 window.stdev = (vals) ->
   if vals.length < 2
     0
   else
     valsMean = mean(vals)
-    total = 0
-    $.each(vals, -> total += Math.pow((@ - valsMean), 2))
-    Math.sqrt(total / (vals.length - 1))
+    Math.sqrt(vals.map((x) -> Math.pow(x - valsMean, 2)).reduce((x, y) -> x + y) / (vals.length - 1))
 
 
 class ShouldMove
@@ -46,10 +42,6 @@ class Quad
                [rnd( 0.5, stdDev), rnd(-0.5, stdDev)],
                [rnd( 0.5, stdDev), rnd( 0.5, stdDev)],
                [rnd(-0.5, stdDev), rnd( 0.5, stdDev)]]
-
-  # Make a random color
-  clip: (x, min, max) ->
-    Math.min(max, Math.max(min, x))
 
   draw: (ctx) ->
     ctx.save()
@@ -108,27 +100,27 @@ class window.Pareidoloop
     @ticking = false
 
   reset: ->
-    @initCanvas(@canvasA, @settings.CANVAS_SIZE)
-    @clearCanvas(@canvasA)
-    @initCanvas(@canvasB, @settings.CANVAS_SIZE)
-    @clearCanvas(@canvasB)
-    @initCanvas(@canvasOut, @settings.OUTPUT_SIZE)
-    @clearCanvas(@canvasOut)
+    @ctxA = @initCanvas(@canvasA, @settings.CANVAS_SIZE)
+    @ctxB = @initCanvas(@canvasB, @settings.CANVAS_SIZE)
+    @ctxOut = @initCanvas(@canvasOut, @settings.OUTPUT_SIZE)
 
     @scoreA.innerHTML = ""
     @scoreB.innerHTML = ""
 
     @faceA = new Face([])
     @faceB = null
-    @seedCount = @genCount = 0
-    @lastImprovedGen = 0
+    @seedCount = @genCount = @lastImprovedGen = @foundCount = 0
     @seeding = true
 
   initCanvas: (canvas, size) ->
     canvas.width = canvas.height = size
+    ctx = canvas.getContext("2d")
 
     # set origin at center
-    canvas.getContext("2d").setTransform(1, 0, 0, 1, size / 2, size / 2)
+    ctx.setTransform(1, 0, 0, 1, size / 2, size / 2)
+
+    @clearCanvas(canvas)
+    ctx
 
   clearCanvas: (canvas) ->
     ctx = canvas.getContext("2d")
@@ -141,7 +133,7 @@ class window.Pareidoloop
     new Face(new Quad([rnd(0, @settings.CANVAS_SIZE / 10), rnd(-@settings.CANVAS_SIZE / 8, @settings.CANVAS_SIZE / 6)],
                       rnd(@settings.CANVAS_SIZE / 3, @settings.CANVAS_SIZE / 7.5),
                       rnd(0.02, 0.2),
-                      @settings.QUAD_INIT_STDDEV) for i in [0...@settings.INITIAL_POLYS])
+                      @settings.QUAD_INIT_STDDEV) for i in [1..@settings.INITIAL_POLYS])
 
   tick: ->
     return unless @ticking
@@ -159,7 +151,7 @@ class window.Pareidoloop
 
     # render new generation
     @clearCanvas(@canvasB)
-    @faceB.draw(@canvasB.getContext("2d"))
+    @faceB.draw(@ctxB)
 
     # test fitness of new generation
     fitness = @faceB.measureFitness(@canvasB)
@@ -167,7 +159,7 @@ class window.Pareidoloop
     fitnessScore = -999
 
     if fitness.numFaces == 1 &&
-       fitness.bounds.width > @settings.CANVAS_SIZE / 2 && fitness.bounds.height > @settings.CANVAS_SIZE / 2
+       fitness.bounds.width > 0.45 * @settings.CANVAS_SIZE && fitness.bounds.height > 0.45 * @settings.CANVAS_SIZE
       # Single face detected (ignore if multiple faces detected) and detected face is large enough
       fitnessScore = fitness.confidence
 
@@ -175,8 +167,8 @@ class window.Pareidoloop
         # new generation replaces previous fittest
         @clearCanvas(@canvasA)
         @faceA = @faceB
-        @faceA.draw(@canvasA.getContext("2d"))
-        @faceA.drawBounds(@canvasA.getContext("2d"))
+        @faceA.draw(@ctxA)
+        @faceA.drawBounds(@ctxA)
         @scoreA.innerHTML = "Fitness: #{fitnessScore.toFixed(6)}, Generation #{@genCount}"
 
         @seeding = false
@@ -187,10 +179,9 @@ class window.Pareidoloop
         fitnessScore > @settings.CONFIDENCE_THRESHOLD)
       # render finished face out as an image
 
-      outCtx = @canvasOut.getContext("2d")
       outScale = @settings.OUTPUT_SIZE / @settings.CANVAS_SIZE
-      outCtx.scale(outScale, outScale)
-      @faceA.draw(outCtx)
+      @ctxOut.scale(outScale, outScale)
+      @faceA.draw(@ctxOut)
 
       outputImg = document.createElement("img")
       outputImg.src = @canvasOut.toDataURL()
@@ -222,15 +213,15 @@ class Face extends Pareidoloop
     else
       # center new poly generation on the bounds of the detected face
       newOrigin = [rnd(@bounds.x + @bounds.width  / 2, @bounds.width  / 4),
-                    rnd(@bounds.y + @bounds.height / 2, @bounds.height / 4)]
+                   rnd(@bounds.y + @bounds.height / 2, @bounds.height / 4)]
 
       fitnessDiff = Math.sqrt(Math.max(0, @settings.MAX_CONFIDENCE_THRESHOLD - @fitness))
 
       # Reduce scale as we approach the target fitness and scale by detected bounds
-      newScale = rnd(0.01 + fitnessDiff, 0.02 * @bounds.width)
+      newScale = Math.max(0.001, rnd(0.03, 0.005)) * fitnessDiff * @bounds.width
 
       # Reduce alpha as we approach the target fitness
-      newAlpha = Math.min(1, Math.max(-1, rnd(0, 0.01 + 0.05 * fitnessDiff)))
+      newAlpha = Math.min(1, Math.max(-1, rnd(0, 0.45)))
 
       childQuads[childQuads.length] = new Quad(newOrigin, newScale, newAlpha, @settings.QUAD_ADD_STDDEV)
 

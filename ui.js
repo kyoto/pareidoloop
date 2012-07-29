@@ -17,7 +17,7 @@
       if (running) {
         pareidoloop.stop();
         running = false;
-        return inputButton.innerHTML = "start";
+        return inputButton.innerHTML = "commence";
       } else {
         go = true;
         imageSize = parseInt(inputImageSize.value);

@@ -13,7 +13,7 @@ $ ->
     if running
       pareidoloop.stop()
       running = false
-      inputButton.innerHTML = "start"
+      inputButton.innerHTML = "commence"
     else
       go = true
 

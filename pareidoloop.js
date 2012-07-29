@@ -9,25 +9,22 @@
   };
 
   window.mean = function(vals) {
-    var total;
-    total = 0;
-    $.each(vals, function() {
-      return total += this;
-    });
-    return total / vals.length;
+    return vals.reduce(function(x, y) {
+      return x + y;
+    }) / vals.length;
   };
 
   window.stdev = function(vals) {
-    var total, valsMean;
+    var valsMean;
     if (vals.length < 2) {
       return 0;
     } else {
       valsMean = mean(vals);
-      total = 0;
-      $.each(vals, function() {
-        return total += Math.pow(this - valsMean, 2);
-      });
-      return Math.sqrt(total / (vals.length - 1));
+      return Math.sqrt(vals.map(function(x) {
+        return Math.pow(x - valsMean, 2);
+      }).reduce(function(x, y) {
+        return x + y;
+      }) / (vals.length - 1));
     }
   };
 
@@ -63,10 +60,6 @@
       this.alpha = alpha;
       this.points = [[rnd(-0.5, stdDev), rnd(-0.5, stdDev)], [rnd(0.5, stdDev), rnd(-0.5, stdDev)], [rnd(0.5, stdDev), rnd(0.5, stdDev)], [rnd(-0.5, stdDev), rnd(0.5, stdDev)]];
     }
-
-    Quad.prototype.clip = function(x, min, max) {
-      return Math.min(max, Math.max(min, x));
-    };
 
     Quad.prototype.draw = function(ctx) {
       var i, _i;
@@ -133,24 +126,24 @@
     };
 
     Pareidoloop.prototype.reset = function() {
-      this.initCanvas(this.canvasA, this.settings.CANVAS_SIZE);
-      this.clearCanvas(this.canvasA);
-      this.initCanvas(this.canvasB, this.settings.CANVAS_SIZE);
-      this.clearCanvas(this.canvasB);
-      this.initCanvas(this.canvasOut, this.settings.OUTPUT_SIZE);
-      this.clearCanvas(this.canvasOut);
+      this.ctxA = this.initCanvas(this.canvasA, this.settings.CANVAS_SIZE);
+      this.ctxB = this.initCanvas(this.canvasB, this.settings.CANVAS_SIZE);
+      this.ctxOut = this.initCanvas(this.canvasOut, this.settings.OUTPUT_SIZE);
       this.scoreA.innerHTML = "";
       this.scoreB.innerHTML = "";
       this.faceA = new Face([]);
       this.faceB = null;
-      this.seedCount = this.genCount = 0;
-      this.lastImprovedGen = 0;
+      this.seedCount = this.genCount = this.lastImprovedGen = this.foundCount = 0;
       return this.seeding = true;
     };
 
     Pareidoloop.prototype.initCanvas = function(canvas, size) {
+      var ctx;
       canvas.width = canvas.height = size;
-      return canvas.getContext("2d").setTransform(1, 0, 0, 1, size / 2, size / 2);
+      ctx = canvas.getContext("2d");
+      ctx.setTransform(1, 0, 0, 1, size / 2, size / 2);
+      this.clearCanvas(canvas);
+      return ctx;
     };
 
     Pareidoloop.prototype.clearCanvas = function(canvas) {
@@ -166,7 +159,7 @@
       return new Face((function() {
         var _i, _ref, _results;
         _results = [];
-        for (i = _i = 0, _ref = this.settings.INITIAL_POLYS; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
+        for (i = _i = 1, _ref = this.settings.INITIAL_POLYS; 1 <= _ref ? _i <= _ref : _i >= _ref; i = 1 <= _ref ? ++_i : --_i) {
           _results.push(new Quad([rnd(0, this.settings.CANVAS_SIZE / 10), rnd(-this.settings.CANVAS_SIZE / 8, this.settings.CANVAS_SIZE / 6)], rnd(this.settings.CANVAS_SIZE / 3, this.settings.CANVAS_SIZE / 7.5), rnd(0.02, 0.2), this.settings.QUAD_INIT_STDDEV));
         }
         return _results;
@@ -174,7 +167,7 @@
     };
 
     Pareidoloop.prototype.tick = function() {
-      var fitness, fitnessScore, outCtx, outScale, outputImg;
+      var fitness, fitnessScore, outScale, outputImg;
       if (!this.ticking) {
         return;
       }
@@ -188,26 +181,25 @@
         this.scoreB.innerHTML = "Generation: " + this.genCount;
       }
       this.clearCanvas(this.canvasB);
-      this.faceB.draw(this.canvasB.getContext("2d"));
+      this.faceB.draw(this.ctxB);
       fitness = this.faceB.measureFitness(this.canvasB);
       fitnessScore = -999;
-      if (fitness.numFaces === 1 && fitness.bounds.width > this.settings.CANVAS_SIZE / 2 && fitness.bounds.height > this.settings.CANVAS_SIZE / 2) {
+      if (fitness.numFaces === 1 && fitness.bounds.width > 0.45 * this.settings.CANVAS_SIZE && fitness.bounds.height > 0.45 * this.settings.CANVAS_SIZE) {
         fitnessScore = fitness.confidence;
         if (this.shouldMove(fitnessScore, this.faceA.fitness)) {
           this.clearCanvas(this.canvasA);
           this.faceA = this.faceB;
-          this.faceA.draw(this.canvasA.getContext("2d"));
-          this.faceA.drawBounds(this.canvasA.getContext("2d"));
+          this.faceA.draw(this.ctxA);
+          this.faceA.drawBounds(this.ctxA);
           this.scoreA.innerHTML = "Fitness: " + (fitnessScore.toFixed(6)) + ", Generation " + this.genCount;
           this.seeding = false;
           this.lastImprovedGen = this.genCount;
         }
       }
       if (this.genCount >= this.settings.MAX_GENERATIONS || (this.genCount - this.lastImprovedGen) > this.settings.MAX_GENS_WITHOUT_IMPROVEMENT || fitnessScore > this.settings.CONFIDENCE_THRESHOLD) {
-        outCtx = this.canvasOut.getContext("2d");
         outScale = this.settings.OUTPUT_SIZE / this.settings.CANVAS_SIZE;
-        outCtx.scale(outScale, outScale);
-        this.faceA.draw(outCtx);
+        this.ctxOut.scale(outScale, outScale);
+        this.faceA.draw(this.ctxOut);
         outputImg = document.createElement("img");
         outputImg.src = this.canvasOut.toDataURL();
         if (this.outputCallback) {
@@ -253,8 +245,8 @@
       } else {
         newOrigin = [rnd(this.bounds.x + this.bounds.width / 2, this.bounds.width / 4), rnd(this.bounds.y + this.bounds.height / 2, this.bounds.height / 4)];
         fitnessDiff = Math.sqrt(Math.max(0, this.settings.MAX_CONFIDENCE_THRESHOLD - this.fitness));
-        newScale = rnd(0.01 + fitnessDiff, 0.02 * this.bounds.width);
-        newAlpha = Math.min(1, Math.max(-1, rnd(0, 0.01 + 0.05 * fitnessDiff)));
+        newScale = Math.max(0.001, rnd(0.03, 0.005)) * fitnessDiff * this.bounds.width;
+        newAlpha = Math.min(1, Math.max(-1, rnd(0, 0.45)));
         childQuads[childQuads.length] = new Quad(newOrigin, newScale, newAlpha, this.settings.QUAD_ADD_STDDEV);
       }
       return new Face(childQuads);
